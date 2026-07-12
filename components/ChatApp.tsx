@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { getUserId } from "../lib/userId";
@@ -8,6 +8,7 @@ import Header from "./Header";
 import HeroBanner from "./HeroBanner";
 import MessageList from "./MessageList";
 import ChatInput from "./ChatInput";
+import type { ChatInputHandle } from "./ChatInput";
 import EmptyState from "./EmptyState";
 import ErrorMessage from "./ErrorMessage";
 import type { Source } from "./Message";
@@ -26,6 +27,7 @@ interface MessageData {
   role: "user" | "assistant" | "system";
   content: string;
   sources: Source[];
+  isPending?: boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,10 +41,14 @@ function mapMessage(msg: any): MessageData {
 }
 
 export default function ChatApp() {
+  const chatInputRef = useRef<ChatInputHandle>(null);
   const [mode, setMode] = useState<"general" | "nick-only">("general");
   const [heroDismissed, setHeroDismissed] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [appState, setAppState] = useState<AppState>("idle");
+  const [optimisticMessages, setOptimisticMessages] = useState<MessageData[]>([]);
+  const [waitingForResponse, setWaitingForResponse] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   const userId = useMemo(() => getUserId(), []);
 
@@ -63,11 +69,29 @@ export default function ChatApp() {
       : "skip"
   );
 
+  // Query for generation errors on the current thread
+  const errors = useQuery(
+    api.chat.listErrors,
+    threadId ? { threadId } : "skip"
+  );
+
+  const latestError = errors && errors.length > 0 ? errors[0] : null;
+
   // Convert Agent messages to our MessageData format
-  const messages = useMemo(() => {
+  const realMessages = useMemo(() => {
     if (!messagesResult) return [];
     return messagesResult.page.map(mapMessage);
   }, [messagesResult]);
+
+  // Merge: show real messages + any optimistic messages not yet confirmed
+  const messages = useMemo(() => {
+    if (realMessages.length === 0) return optimisticMessages;
+    // Match optimistic messages to real ones by ID (set after sendMessageMutation returns)
+    // Any optimistic messages without a matching real message are still pending
+    const realIds = new Set(realMessages.map((m) => m.id));
+    const unconfirmed = optimisticMessages.filter((m) => !realIds.has(m.id));
+    return [...realMessages, ...unconfirmed];
+  }, [realMessages, optimisticMessages]);
 
   // Check if any message is still streaming
   const isStreaming = useMemo(() => {
@@ -76,12 +100,31 @@ export default function ChatApp() {
     return messagesResult.page.some((msg: any) => msg.status === "streaming");
   }, [messagesResult]);
 
+  // Clear waiting state once assistant reply with content arrives
+  useEffect(() => {
+    if (waitingForResponse && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.role === "assistant" && lastMsg.content.trim().length > 0) {
+        setWaitingForResponse(false);
+      }
+    }
+  }, [messages, waitingForResponse]);
+
   // Reset app state when streaming finishes
   useEffect(() => {
     if (!isStreaming && appState === "streaming") {
       setAppState("idle");
     }
   }, [isStreaming, appState]);
+
+  // Detect generation errors and transition to error state
+  useEffect(() => {
+    if (latestError && appState === "streaming") {
+      setGenerationError(latestError.error);
+      setAppState("error");
+      setWaitingForResponse(false);
+    }
+  }, [latestError, appState]);
 
   const handleSend = useCallback(async () => {
     const text = inputValue.trim();
@@ -93,39 +136,62 @@ export default function ChatApp() {
       return;
     }
 
+    const userMsg: MessageData = {
+      id: `optimistic-${Date.now()}`,
+      role: "user",
+      content: text,
+      sources: [],
+      isPending: true,
+    };
+
     setInputValue("");
+    setOptimisticMessages((prev) => [...prev, userMsg]);
     setAppState("sending");
+    setWaitingForResponse(true);
+    setGenerationError(null);
 
     try {
-      // Get or create thread
       let currentThreadId = threadId;
       if (!currentThreadId) {
         currentThreadId = await getOrCreateThread({ userId, mode });
         setThreadId(currentThreadId);
       }
 
-      // Send the message
-      await sendMessageMutation({
+      const realMessageId = await sendMessageMutation({
         threadId: currentThreadId,
         prompt: text,
         mode,
       });
 
+      // Update optimistic message with the real message ID for proper merge correlation
+      setOptimisticMessages((prev) =>
+        prev.map((m) => (m.id === userMsg.id ? { ...m, id: realMessageId } : m))
+      );
+
       setAppState("streaming");
     } catch (error) {
       console.error("Failed to send message:", error);
       setAppState("error");
+      setWaitingForResponse(false);
+      setOptimisticMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
     }
   }, [inputValue, appState, mode, threadId, userId, getOrCreateThread, sendMessageMutation]);
 
-  const handleDismissError = () => setAppState("idle");
+  const handleDismissError = () => {
+    setGenerationError(null);
+    setAppState("idle");
+  };
 
   const handleExampleClick = (text: string) => {
     setInputValue(text);
+    setTimeout(() => chatInputRef.current?.focus(), 0);
   };
 
   const handleNewChat = async () => {
     setAppState("idle");
+    setWaitingForResponse(false);
+    setGenerationError(null);
+    setOptimisticMessages([]);
     try {
       await resetChat({ userId });
     } catch {
@@ -151,7 +217,10 @@ export default function ChatApp() {
       )}
 
       {appState === "error" && (
-        <ErrorMessage onDismiss={handleDismissError} />
+        <ErrorMessage
+          message={generationError ?? undefined}
+          onDismiss={handleDismissError}
+        />
       )}
 
       {messages.length === 0 ? (
@@ -160,10 +229,11 @@ export default function ChatApp() {
           showSuggestions={inputValue.length === 0}
         />
       ) : (
-        <MessageList messages={messages} isStreaming={isStreaming} />
+        <MessageList messages={messages} isStreaming={isStreaming} isWaiting={waitingForResponse} />
       )}
 
       <ChatInput
+        ref={chatInputRef}
         value={inputValue}
         onChange={setInputValue}
         onSend={handleSend}

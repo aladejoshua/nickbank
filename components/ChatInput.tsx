@@ -89,7 +89,13 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const [showDisclaimer, setShowDisclaimer] = useState(false);
 
     useImperativeHandle(ref, () => ({
-      focus: () => textareaRef.current?.focus(),
+      focus: () => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        const len = el.value.length;
+        el.setSelectionRange(len, len);
+      },
     }));
 
     useEffect(() => {

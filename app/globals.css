@@ -158,3 +158,42 @@ body {
   animation: collapse 0.3s ease-out forwards;
   overflow: hidden;
 }
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes word-fade {
+  0%, 100% {
+    opacity: 0;
+  }
+  15%, 85% {
+    opacity: 1;
+  }
+}
+
+.shimmer-text {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    var(--text-muted) 0%,
+    var(--text-muted) 35%,
+    var(--text-primary) 50%,
+    var(--text-muted) 65%,
+    var(--text-muted) 100%
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.shimmer-word {
+  display: inline-block;
+  animation: word-fade 1.8s ease-in-out infinite, shimmer 1.8s ease-in-out infinite;
+}

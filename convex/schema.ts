@@ -10,4 +10,11 @@ export default defineSchema({
     mode: v.union(v.literal("general"), v.literal("nick-only")),
     createdAt: v.number(),
   }).index("by_userId", ["userId"]),
+
+  generationErrors: defineTable({
+    threadId: v.string(),
+    promptMessageId: v.string(),
+    error: v.string(),
+    timestamp: v.number(),
+  }).index("by_threadId", ["threadId"]),
 });

@@ -2,7 +2,7 @@ import { createThread, listUIMessages, saveMessage, syncStreams, vStreamArgs } f
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { components, internal } from "./_generated/api";
-import { mutation, query, internalAction } from "./_generated/server";
+import { mutation, query, internalAction, internalMutation } from "./_generated/server";
 import { generalAgent } from "./agents/general";
 import { nickOnlyAgent } from "./agents/nickOnly";
 
@@ -27,13 +27,27 @@ export const getOrCreateThread = mutation({
     // Create new thread via Agent component
     const threadId = await createThread(ctx, components.agent, {});
 
-    // Store mapping in our lookup table
-    await ctx.db.insert("userThreads", {
-      userId,
-      threadId,
-      mode,
-      createdAt: Date.now(),
-    });
+    try {
+      // Store mapping in our lookup table
+      await ctx.db.insert("userThreads", {
+        userId,
+        threadId,
+        mode,
+        createdAt: Date.now(),
+      });
+    } catch (error) {
+      // Handle race condition: if another call inserted first, fetch the existing thread
+      // This can happen with concurrent calls or multiple tabs
+      const record = await ctx.db
+        .query("userThreads")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .first();
+      if (record) {
+        return record.threadId;
+      }
+      // Re-throw if it's a different error
+      throw error;
+    }
 
     return threadId;
   },
@@ -82,6 +96,19 @@ export const listMessages = query({
   },
 });
 
+export const listErrors = query({
+  args: {
+    threadId: v.string(),
+  },
+  handler: async (ctx, { threadId }) => {
+    return await ctx.db
+      .query("generationErrors")
+      .withIndex("by_threadId", (q) => q.eq("threadId", threadId))
+      .order("desc")
+      .collect();
+  },
+});
+
 export const sendMessage = mutation({
   args: {
     threadId: v.string(),
@@ -110,11 +137,36 @@ export const generateResponseAsync = internalAction({
   },
   handler: async (ctx, { threadId, promptMessageId, mode }) => {
     const agent = mode === "nick-only" ? nickOnlyAgent : generalAgent;
-    await agent.streamText(
-      ctx,
-      { threadId },
-      { promptMessageId },
-      { saveStreamDeltas: true }
-    );
+    try {
+      await agent.streamText(
+        ctx,
+        { threadId },
+        { promptMessageId },
+        { saveStreamDeltas: true }
+      );
+    } catch (error) {
+      console.error("generateResponseAsync failed:", error);
+      await ctx.runMutation(internal.chat.logGenerationError, {
+        threadId,
+        promptMessageId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  },
+});
+
+export const logGenerationError = internalMutation({
+  args: {
+    threadId: v.string(),
+    promptMessageId: v.string(),
+    error: v.string(),
+  },
+  handler: async (ctx, { threadId, promptMessageId, error }) => {
+    await ctx.db.insert("generationErrors", {
+      threadId,
+      promptMessageId,
+      error,
+      timestamp: Date.now(),
+    });
   },
 });

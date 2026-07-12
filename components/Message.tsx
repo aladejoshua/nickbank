@@ -14,6 +14,7 @@ interface MessageProps {
   content: string;
   sources?: Source[];
   isStreaming?: boolean;
+  isPending?: boolean;
 }
 
 function SourcesModal({
@@ -70,6 +71,7 @@ export default function Message({
   content,
   sources,
   isStreaming,
+  isPending,
 }: MessageProps) {
   const [showAllSources, setShowAllSources] = useState(false);
 
@@ -88,7 +90,7 @@ export default function Message({
   return (
     <>
       <div
-        className={`animate-fade-in-up flex px-4 ${isUser ? "justify-end" : "justify-start"}`}
+        className={`animate-fade-in-up flex px-4 transition-opacity duration-300 ${isUser ? "justify-end" : "justify-start"} ${isPending ? "opacity-50" : ""}`}
       >
         <div
           className={`${isUser ? "max-w-[80%] rounded-2xl rounded-br-md bg-white/10 px-4 py-3" : "max-w-[95%] rounded-2xl rounded-bl-md px-4 py-3"}`}
