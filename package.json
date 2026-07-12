@@ -9,6 +9,14 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.12",
+    "@convex-dev/agent": "^0.6.4",
+    "@convex-dev/rag": "^0.7.5",
+    "@convex-dev/rate-limiter": "^0.3.2",
+    "ai": "^6.0.224",
+    "convex": "^1.42.1",
+    "convex-helpers": "^0.1.120",
+    "dotenv": "^17.4.2",
     "lucide-react": "^1.24.0",
     "next": "16.2.10",
     "react": "19.2.4",
