@@ -1,9 +1,10 @@
 "use client";
 
+// Rule 4: sources are Array<{ id: string, title: string, score: number }>
 interface SourceCardProps {
+  id: string;
   title: string;
-  date: string;
-  videoUrl: string;
+  score: number;
 }
 
 function getVideoId(url: string): string | null {
@@ -11,12 +12,12 @@ function getVideoId(url: string): string | null {
   return match ? match[1] : null;
 }
 
-export default function SourceCard({ title, date, videoUrl }: SourceCardProps) {
-  const videoId = getVideoId(videoUrl);
+export default function SourceCard({ id, title, score }: SourceCardProps) {
+  const videoId = getVideoId(id);
 
   return (
     <a
-      href={videoUrl}
+      href={id}
       target="_blank"
       rel="noopener noreferrer"
       className="group flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 py-2 transition-colors hover:bg-[--surface]"
@@ -39,7 +40,9 @@ export default function SourceCard({ title, date, videoUrl }: SourceCardProps) {
         <p className="truncate text-xs font-medium text-[--text-primary] group-hover:text-[--accent]">
           {title}
         </p>
-        <p className="text-[11px] text-[--text-secondary]">{date}</p>
+        <p className="text-[11px] text-[--text-secondary]">
+          {Math.round(score * 100)}% match
+        </p>
       </div>
       <svg
         className="h-4 w-4 shrink-0 text-[--text-muted] transition-colors group-hover:text-[--accent]"

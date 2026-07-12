@@ -10,15 +10,18 @@ export interface MessageData {
   content: string;
   sources?: Source[];
   isPending?: boolean;
+  isError?: boolean;
+  error?: string;
 }
 
 interface MessageListProps {
   messages: MessageData[];
   isStreaming: boolean;
   isWaiting: boolean;
+  onRetry?: (messageId: string) => void;
 }
 
-export default function MessageList({ messages, isStreaming, isWaiting }: MessageListProps) {
+export default function MessageList({ messages, isStreaming, isWaiting, onRetry }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,6 +46,8 @@ export default function MessageList({ messages, isStreaming, isWaiting }: Messag
             key={msg.id}
             {...msg}
             isStreaming={isStreaming && i === messages.length - 1 && msg.role === "assistant"}
+            isError={msg.isError}
+            onRetry={msg.isError && onRetry ? () => onRetry(msg.id) : undefined}
           />
         ))}
         {showThinking && <ThinkingIndicator />}

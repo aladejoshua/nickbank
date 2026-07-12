@@ -17,4 +17,19 @@ export default defineSchema({
     error: v.string(),
     timestamp: v.number(),
   }).index("by_threadId", ["threadId"]),
+
+  // Rule 4: sources attached to assistant messages for citation display
+  messageSources: defineTable({
+    messageId: v.string(),
+    threadId: v.string(),
+    sources: v.array(
+      v.object({
+        id: v.string(),
+        title: v.string(),
+        score: v.number(),
+      })
+    ),
+  })
+    .index("by_messageId", ["messageId"])
+    .index("by_threadId", ["threadId"]),
 });

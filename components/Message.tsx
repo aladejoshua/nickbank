@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Markdown from "react-markdown";
 import SourceCard from "./SourceCard";
 
+// Rule 4: sources must be Array<{ id: string, title: string, score: number }>
 export interface Source {
+  id: string;
   title: string;
-  date: string;
-  videoUrl: string;
+  score: number;
 }
 
 interface MessageProps {
@@ -15,6 +17,8 @@ interface MessageProps {
   sources?: Source[];
   isStreaming?: boolean;
   isPending?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
 function SourcesModal({
@@ -57,8 +61,8 @@ function SourcesModal({
           </button>
         </div>
         <div className="flex flex-col gap-2">
-          {sources.map((source, i) => (
-            <SourceCard key={i} {...source} />
+          {sources.map((source) => (
+            <SourceCard key={source.id} {...source} />
           ))}
         </div>
       </div>
@@ -72,6 +76,8 @@ export default function Message({
   sources,
   isStreaming,
   isPending,
+  isError,
+  onRetry,
 }: MessageProps) {
   const [showAllSources, setShowAllSources] = useState(false);
 
@@ -95,16 +101,30 @@ export default function Message({
         <div
           className={`${isUser ? "max-w-[80%] rounded-2xl rounded-br-md bg-white/10 px-4 py-3" : "max-w-[95%] rounded-2xl rounded-bl-md px-4 py-3"}`}
         >
-          <div className="whitespace-pre-wrap text-sm leading-relaxed text-[--text-primary]">
-            {content}
+          <div className="text-sm leading-relaxed text-[--text-primary] prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-a:text-[--accent] prose-code:text-[--accent] prose-code:bg-white/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-white/5 prose-strong:text-[--text-primary]">
+            <Markdown>{content}</Markdown>
             {isStreaming && (
               <span className="animate-blink ml-0.5 inline-block h-4 w-0.5 bg-[--accent]" />
             )}
           </div>
+          {/* Rule 6: error state with retry action */}
+          {isError && !isUser && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-xs text-[--error]">Generation failed</span>
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  className="rounded-md bg-[--error]/10 px-2 py-1 text-xs font-medium text-[--error] transition-colors hover:bg-[--error]/20"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
           {!isUser && visibleSources.length > 0 && (
             <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap">
-              {visibleSources.map((source, i) => (
-                <SourceCard key={i} {...source} />
+              {visibleSources.map((source) => (
+                <SourceCard key={source.id} {...source} />
               ))}
               {hiddenCount > 0 && (
                 <button

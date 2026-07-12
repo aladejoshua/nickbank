@@ -241,7 +241,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                   ? `${(tokenCount / 1000000).toFixed(1)}M`
                   : tokenCount >= 1000
                     ? `${(tokenCount / 1000).toFixed(1)}K`
-                    : tokenCount} / 1M tokens
+                    : tokenCount} / 1M chars
               </p>
               {value.length > MAX_CHARS * 0.8 && (
                 <p
