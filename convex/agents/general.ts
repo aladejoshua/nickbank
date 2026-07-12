@@ -4,7 +4,7 @@ import { components } from "../_generated/api";
 
 export const generalAgent = new Agent(components.agent, {
   name: "General Q&A",
-  languageModel: google("gemini-2.5-flash"),
+  languageModel: google("gemini-3.5-flash"),
   instructions: `You are a helpful assistant that answers questions about Nick's content.
 
 Core rules:
